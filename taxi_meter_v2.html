@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ともなり 運送・支援メーター</title>
+<style>
+  :root {
+    --bg:    #1A2332; --bg2: #243042; --bg3: #2E3D54;
+    --green: #00D084; --gold: #F5A623; --red: #E84545;
+    --blue:  #4A9EFF; --purple: #A855F7;
+    --gray:  #8A9AB5; --text: #E8EDF5; --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text);
+    font-family: -apple-system,'Hiragino Sans',sans-serif; min-height: 100vh; }
+
+  .screen { display: none; min-height: 100vh; padding-bottom: 40px; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  .header {
+    background: var(--bg2); padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--bg3); position: sticky; top: 0; z-index: 10;
+  }
+  .header h1 { font-size: 15px; font-weight: 700; color: var(--green); letter-spacing: .05em; }
+  .header .step { font-size: 12px; color: var(--gray); }
+
+  .content { flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  .card { background: var(--bg2); border-radius: 12px; padding: 16px; border: 1px solid var(--bg3); }
+  .card-label { font-size: 11px; color: var(--gray); text-transform: uppercase;
+    letter-spacing: .1em; margin-bottom: 10px; font-weight: 600; }
+
+  select, input[type="number"], input[type="text"] {
+    width: 100%; background: var(--bg3); color: var(--text);
+    border: 1px solid #3E5070; border-radius: 8px;
+    padding: 12px 14px; font-size: 16px;
+    -webkit-appearance: none; appearance: none;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--green); }
+
+  /* 往復選択 */
+  .trip-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .trip-btn {
+    background: var(--bg3); border: 2px solid var(--bg3); border-radius: 10px;
+    padding: 16px 10px; color: var(--gray); font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: center; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .trip-btn .t-icon { font-size: 26px; }
+  .trip-btn.active { border-color: var(--green); background: rgba(0,208,132,.12); color: var(--green); }
+
+  /* オプション */
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .opt-btn {
+    background: var(--bg3); border: 2px solid var(--bg3); border-radius: 10px;
+    padding: 14px 10px; color: var(--gray); font-size: 14px; font-weight: 600;
+    cursor: pointer; text-align: center; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .opt-btn .opt-icon { font-size: 22px; }
+  .opt-btn .opt-price { font-size: 11px; color: var(--gray); }
+  .opt-btn.active { border-color: var(--green); background: rgba(0,208,132,.12); color: var(--green); }
+  .opt-btn.active .opt-price { color: var(--green); }
+
+  /* メーター */
+  .meter-block {
+    background: var(--bg2); border-radius: 16px; padding: 24px 20px;
+    text-align: center; border: 1px solid var(--bg3);
+  }
+  .meter-label { font-size: 11px; color: var(--gray); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+  .meter-value {
+    font-size: 68px; font-weight: 800; font-family: 'Courier New', monospace;
+    color: var(--green); letter-spacing: -.02em; transition: color .15s; line-height: 1;
+  }
+  .meter-value.pulse { color: var(--gold); }
+  .meter-unit { font-size: 20px; color: var(--gray); margin-top: 2px; }
+  .fare-display {
+    background: var(--bg); border-radius: 12px; padding: 14px; text-align: center; margin-top: 12px;
+  }
+  .fare-label { font-size: 11px; color: var(--gray); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+  .fare-value { font-size: 44px; font-weight: 800; font-family: 'Courier New', monospace; color: var(--gold); }
+  .fare-unit { font-size: 18px; color: var(--gray); }
+  .time-row { display: flex; justify-content: center; gap: 32px; margin-top: 14px; }
+  .time-item { text-align: center; }
+  .time-item .t-label { font-size: 10px; color: var(--gray); letter-spacing: .08em; }
+  .time-item .t-val { font-size: 22px; font-weight: 700; font-family: 'Courier New', monospace; color: var(--text); }
+
+  /* GPS */
+  .gps-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg3); border-radius: 20px; padding: 6px 12px;
+    font-size: 12px; color: var(--gray); margin-bottom: 12px;
+  }
+  .gps-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); }
+  .gps-dot.ok  { background: var(--green); animation: blink 1.5s infinite; }
+  .gps-dot.err { background: var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* 現地画面：支援/待機 選択 */
+  .mode-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mode-btn {
+    background: var(--bg3); border: 2px solid var(--bg3); border-radius: 14px;
+    padding: 20px 10px; color: var(--gray); font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: center; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .mode-btn .m-icon { font-size: 32px; }
+  .mode-btn .m-sub  { font-size: 11px; color: var(--gray); }
+  .mode-btn.active-support { border-color: var(--blue); background: rgba(74,158,255,.12); color: var(--blue); }
+  .mode-btn.active-support .m-sub { color: var(--blue); }
+  .mode-btn.active-wait   { border-color: var(--gold); background: rgba(245,166,35,.12); color: var(--gold); }
+  .mode-btn.active-wait   .m-sub { color: var(--gold); }
+
+  /* タイマーブロック（支援・待機共通） */
+  .timer-block {
+    border-radius: 12px; border: 2px solid var(--bg3); padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: border-color .2s, background .2s;
+  }
+  .timer-block.mode-support { border-color: var(--blue); background: rgba(74,158,255,.08); }
+  .timer-block.mode-wait    { border-color: var(--gold); background: rgba(245,166,35,.08); }
+  .timer-info .ti-label { font-size: 11px; color: var(--gray); letter-spacing: .08em; text-transform: uppercase; }
+  .timer-info .ti-val   { font-size: 32px; font-weight: 800; font-family: 'Courier New', monospace; }
+  .timer-info .ti-val.support { color: var(--blue); }
+  .timer-info .ti-val.wait    { color: var(--gold); }
+  .timer-info .ti-sub   { font-size: 13px; color: var(--gray); margin-top: 2px; }
+  .timer-info .ti-sub span { font-weight: 700; }
+  .timer-info .ti-sub span.support { color: var(--blue); }
+  .timer-info .ti-sub span.wait    { color: var(--gold); }
+  .btn-timer-toggle {
+    background: var(--bg3); border: 2px solid var(--bg3); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 14px; font-weight: 700;
+    cursor: pointer; text-align: center; transition: all .2s; white-space: nowrap; min-width: 64px;
+  }
+  .btn-timer-toggle.running-support { background: rgba(74,158,255,.2); border-color: var(--blue); color: var(--blue); }
+  .btn-timer-toggle.running-wait    { background: rgba(245,166,35,.2); border-color: var(--gold); color: var(--gold); }
+
+  /* サマリー */
+  .summary-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 11px 0; border-bottom: 1px solid var(--bg3); font-size: 15px;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .s-label { color: var(--gray); }
+  .summary-row .s-val   { font-weight: 700; color: var(--text); }
+  .summary-section-title {
+    font-size: 11px; color: var(--gray); text-transform: uppercase;
+    letter-spacing: .1em; font-weight: 600; padding: 8px 0 4px;
+  }
+  .summary-total {
+    background: var(--bg3); border-radius: 10px; padding: 16px;
+    display: flex; justify-content: space-between; align-items: center; margin-top: 8px;
+  }
+  .summary-total .t-label { font-size: 14px; color: var(--gray); }
+  .summary-total .t-val { font-size: 32px; font-weight: 800; color: var(--gold); font-family: 'Courier New', monospace; }
+
+  /* 時間帯区分バッジ */
+  .zone-badge {
+    display: inline-block; border-radius: 6px; padding: 3px 8px;
+    font-size: 11px; font-weight: 700;
+  }
+  .zone-day    { background: rgba(0,208,132,.15); color: var(--green); }
+  .zone-eve    { background: rgba(245,166,35,.15); color: var(--gold); }
+  .zone-night  { background: rgba(168,85,247,.15); color: var(--purple); }
+
+  /* ボタン */
+  .btn {
+    width: 100%; padding: 18px; border-radius: 12px;
+    font-size: 18px; font-weight: 700; cursor: pointer; border: none;
+    letter-spacing: .04em; transition: all .15s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--green); color: #000; }
+  .btn-danger  { background: var(--red);   color: #fff; }
+  .btn-gold    { background: var(--gold);  color: #000; }
+  .btn-blue    { background: var(--blue);  color: #000; }
+  .btn-ghost   { background: var(--bg3);   color: var(--text); border: 1px solid var(--bg3); }
+  .btn-sm { padding: 12px; font-size: 15px; border-radius: 8px; }
+
+  .divider { height: 1px; background: var(--bg3); margin: 4px 0; }
+
+  /* 進捗バー */
+  .progress-bar {
+    display: flex; gap: 6px; padding: 0 16px 14px;
+  }
+  .progress-step {
+    flex: 1; height: 4px; border-radius: 2px; background: var(--bg3);
+    transition: background .3s;
+  }
+  .progress-step.done    { background: var(--green); }
+  .progress-step.current { background: var(--gold); }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg3); color: var(--text); padding: 12px 24px; border-radius: 24px;
+    font-size: 14px; font-weight: 600; opacity: 0; transition: all .3s;
+    pointer-events: none; z-index: 100; border: 1px solid var(--bg2); white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(26,35,50,.85);
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 200;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--bg3);
+    border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .complete-icon { font-size: 64px; text-align: center; margin: 20px 0 10px; }
+  .complete-msg  { text-align: center; font-size: 16px; color: var(--gray); margin-bottom: 20px; }
+
+  .info-banner {
+    background: rgba(74,158,255,.1); border: 1px solid rgba(74,158,255,.3);
+    border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--blue);
+    text-align: center; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SCREEN 1: 乗車前設定 ============ -->
+<div id="screen-setup" class="screen active">
+  <div class="header">
+    <h1>🚗 ともなり 運送メーター</h1>
+    <span class="step">乗車前設定</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-step current" id="prog-1"></div>
+    <div class="progress-step" id="prog-2"></div>
+    <div class="progress-step" id="prog-3"></div>
+    <div class="progress-step" id="prog-4"></div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <div class="card-label">利用者</div>
+      <select id="member-select">
+        <option value="">── 読み込み中... ──</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-label">乗車タイプ</div>
+      <div class="trip-selector">
+        <button class="trip-btn active" id="trip-roundtrip" onclick="selectTrip('roundtrip')">
+          <span class="t-icon">🔄</span>
+          <span>往復</span>
+        </button>
+        <button class="trip-btn" id="trip-oneway" onclick="selectTrip('oneway')">
+          <span class="t-icon">➡️</span>
+          <span>片道</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">オプション（該当するものをタップ）</div>
+      <div class="options-grid">
+        <button class="opt-btn" id="opt-pickup" onclick="toggleOpt('pickup')">
+          <span class="opt-icon">🚩</span>
+          <span>迎車・回送</span>
+          <span class="opt-price">+300円</span>
+        </button>
+        <button class="opt-btn" id="opt-wheelchair" onclick="toggleOpt('wheelchair')">
+          <span class="opt-icon">♿</span>
+          <span>車椅子貸出</span>
+          <span class="opt-price">+300円/日</span>
+        </button>
+        <button class="opt-btn" id="opt-night" onclick="toggleOpt('night')">
+          <span class="opt-icon">🌙</span>
+          <span>夜間割増</span>
+          <span class="opt-price">運賃×1.2</span>
+        </button>
+        <button class="opt-btn" id="opt-kaigo" onclick="toggleOpt('kaigo')">
+          <span class="opt-icon">🤝</span>
+          <span>身体介護あり</span>
+          <span class="opt-price">支援報酬UP</span>
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-top: auto; padding-top: 8px;">
+      <button class="btn btn-primary" onclick="startOutbound()">🚀 往路 乗車開始</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 2: 往路走行中 ============ -->
+<div id="screen-outbound" class="screen">
+  <div class="header">
+    <h1>🚗 往路 走行中</h1>
+    <span class="step" id="outbound-passenger"></span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-step done"></div>
+    <div class="progress-step current"></div>
+    <div class="progress-step" id="prog-ob-3"></div>
+    <div class="progress-step" id="prog-ob-4"></div>
+  </div>
+  <div class="content">
+    <div style="text-align:center;">
+      <div class="gps-badge">
+        <div class="gps-dot" id="gps-dot-ob"></div>
+        <span id="gps-status-ob">GPS取得中...</span>
+      </div>
+    </div>
+    <div class="meter-block">
+      <div class="meter-label">往路 走行距離</div>
+      <div class="meter-value" id="dist-ob">0.000</div>
+      <div class="meter-unit">km</div>
+      <div class="fare-display">
+        <div class="fare-label">現在の運送対価</div>
+        <div class="fare-value" id="fare-ob">520</div>
+        <div class="fare-unit">円</div>
+      </div>
+      <div class="time-row">
+        <div class="time-item">
+          <div class="t-label">乗車時刻</div>
+          <div class="t-val" id="start-time-ob">--:--</div>
+        </div>
+        <div class="time-item">
+          <div class="t-label">経過時間</div>
+          <div class="t-val" id="elapsed-ob">00:00</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: auto; padding-top: 8px;">
+      <button class="btn btn-danger" onclick="arriveDestination()">🏁 現地到着</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 3: 現地・中間画面 ============ -->
+<div id="screen-middle" class="screen">
+  <div class="header">
+    <h1>📍 現地到着</h1>
+    <span class="step" id="middle-passenger"></span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-step done"></div>
+    <div class="progress-step done"></div>
+    <div class="progress-step current"></div>
+    <div class="progress-step" id="prog-mid-4"></div>
+  </div>
+  <div class="content">
+    <div class="info-banner" id="middle-ob-result">往路 0.000km → 運送対価 0円</div>
+
+    <div class="card">
+      <div class="card-label">現地での対応を選択（後から変更可）</div>
+      <div class="mode-selector">
+        <button class="mode-btn" id="mode-support" onclick="selectMode('support')">
+          <span class="m-icon">🤝</span>
+          <span>移動支援</span>
+          <span class="m-sub">支援タイマー計測</span>
+        </button>
+        <button class="mode-btn" id="mode-wait" onclick="selectMode('wait')">
+          <span class="m-icon">🕐</span>
+          <span>待機のみ</span>
+          <span class="m-sub">10分超から250円/10分</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- タイマーブロック（モード選択後に表示） -->
+    <div id="timer-area" style="display:none;">
+      <div class="timer-block" id="timer-block">
+        <div class="timer-info">
+          <div class="ti-label" id="timer-label">支援時間</div>
+          <div class="ti-val" id="timer-val">00:00</div>
+          <div class="ti-sub" id="timer-sub">料金：<span id="timer-fee">0</span>円</div>
+        </div>
+        <button class="btn-timer-toggle" id="btn-timer" onclick="toggleTimer()">
+          開始
+        </button>
+      </div>
+
+      <!-- 移動支援：時間帯区分 -->
+      <div id="support-zone-area" style="display:none; margin-top: 12px;">
+        <div class="card">
+          <div class="card-label">移動支援 時間帯区分</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="opt-btn active" id="zone-day"  onclick="selectZone('day')"
+              style="flex:1; min-width:80px; font-size:13px; padding:10px 6px;">
+              <span class="opt-icon">☀️</span><span>日中</span>
+              <span class="opt-price">加算なし</span>
+            </button>
+            <button class="opt-btn" id="zone-eve" onclick="selectZone('eve')"
+              style="flex:1; min-width:80px; font-size:13px; padding:10px 6px;">
+              <span class="opt-icon">🌆</span><span>早朝・夜間</span>
+              <span class="opt-price">+25%</span>
+            </button>
+            <button class="opt-btn" id="zone-night" onclick="selectZone('night')"
+              style="flex:1; min-width:80px; font-size:13px; padding:10px 6px;">
+              <span class="opt-icon">🌃</span><span>深夜</span>
+              <span class="opt-price">+50%</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: auto; padding-top: 8px;" id="middle-next-area">
+      <button class="btn btn-primary" id="btn-middle-next" onclick="leaveDestination()">
+        🚗 復路 乗車開始
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="skipReturn()" id="btn-skip-return" style="margin-top:8px; display:none;">
+        片道のためここで終了 → 記録へ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 4: 復路走行中 ============ -->
+<div id="screen-return" class="screen">
+  <div class="header">
+    <h1>🚗 復路 走行中</h1>
+    <span class="step" id="return-passenger"></span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-step done"></div>
+    <div class="progress-step done"></div>
+    <div class="progress-step done"></div>
+    <div class="progress-step current"></div>
+  </div>
+  <div class="content">
+    <div style="text-align:center;">
+      <div class="gps-badge">
+        <div class="gps-dot" id="gps-dot-rt"></div>
+        <span id="gps-status-rt">GPS取得中...</span>
+      </div>
+    </div>
+    <div class="meter-block">
+      <div class="meter-label">復路 走行距離</div>
+      <div class="meter-value" id="dist-rt">0.000</div>
+      <div class="meter-unit">km</div>
+      <div class="fare-display">
+        <div class="fare-label">現在の運送対価（復路）</div>
+        <div class="fare-value" id="fare-rt">520</div>
+        <div class="fare-unit">円</div>
+      </div>
+      <div class="time-row">
+        <div class="time-item">
+          <div class="t-label">復路 開始</div>
+          <div class="t-val" id="start-time-rt">--:--</div>
+        </div>
+        <div class="time-item">
+          <div class="t-label">経過時間</div>
+          <div class="t-val" id="elapsed-rt">00:00</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: auto; padding-top: 8px;">
+      <button class="btn btn-danger" onclick="finishReturn()">🏁 帰宅・降車</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 5: 記録確認 ============ -->
+<div id="screen-summary" class="screen">
+  <div class="header">
+    <h1>📋 料金確認・記録</h1>
+    <span class="step" id="sum-passenger"></span>
+  </div>
+  <div class="content">
+    <!-- 福祉有償運送 -->
+    <div class="card">
+      <div class="summary-section-title">🚗 福祉有償運送（一般社団法人ともなり福祉サービス）</div>
+      <div class="summary-row">
+        <span class="s-label">往路距離</span>
+        <span class="s-val" id="sum-dist-ob">─</span>
+      </div>
+      <div class="summary-row" id="sum-row-dist-rt">
+        <span class="s-label">復路距離</span>
+        <span class="s-val" id="sum-dist-rt">─</span>
+      </div>
+      <div class="summary-row">
+        <span class="s-label">往路 運送対価</span>
+        <span class="s-val" id="sum-fare-ob">─</span>
+      </div>
+      <div class="summary-row" id="sum-row-fare-rt">
+        <span class="s-label">復路 運送対価</span>
+        <span class="s-val" id="sum-fare-rt">─</span>
+      </div>
+      <div class="summary-row" id="sum-row-night" style="display:none">
+        <span class="s-label">夜間割増</span>
+        <span class="s-val" id="sum-night">─</span>
+      </div>
+      <div class="summary-row" id="sum-row-pickup" style="display:none">
+        <span class="s-label">迎車・回送</span>
+        <span class="s-val">+300円</span>
+      </div>
+      <div class="summary-row" id="sum-row-wheel" style="display:none">
+        <span class="s-label">車椅子貸出</span>
+        <span class="s-val">+300円</span>
+      </div>
+      <div class="summary-row" id="sum-row-wait" style="display:none">
+        <span class="s-label">待機料金</span>
+        <span class="s-val" id="sum-wait-fee">─</span>
+      </div>
+      <div class="divider"></div>
+      <div class="summary-row">
+        <span class="s-label" style="font-weight:700; color:var(--text);">運送 小計</span>
+        <span class="s-val" style="color:var(--gold); font-size:18px;" id="sum-transport-total">─</span>
+      </div>
+    </div>
+
+    <!-- 移動支援 -->
+    <div class="card" id="sum-support-card" style="display:none;">
+      <div class="summary-section-title">🤝 移動支援（株式会社ともなり）</div>
+      <div class="summary-row">
+        <span class="s-label">支援時間</span>
+        <span class="s-val" id="sum-support-time">─</span>
+      </div>
+      <div class="summary-row">
+        <span class="s-label">身体介護</span>
+        <span class="s-val" id="sum-kaigo">─</span>
+      </div>
+      <div class="summary-row">
+        <span class="s-label">時間帯</span>
+        <span class="s-val" id="sum-zone">─</span>
+      </div>
+      <div class="summary-row">
+        <span class="s-label">支援基本料</span>
+        <span class="s-val" id="sum-support-base">─</span>
+      </div>
+      <div class="summary-row" id="sum-row-zone-add" style="display:none;">
+        <span class="s-label">時間帯加算</span>
+        <span class="s-val" id="sum-zone-add">─</span>
+      </div>
+      <div class="divider"></div>
+      <div class="summary-row">
+        <span class="s-label" style="font-weight:700; color:var(--text);">支援 合計</span>
+        <span class="s-val" style="color:var(--blue); font-size:18px;" id="sum-support-total">─</span>
+      </div>
+      <div class="summary-row" style="font-size:13px;">
+        <span class="s-label">　うち利用者負担（10%）</span>
+        <span class="s-val" id="sum-user-burden">─</span>
+      </div>
+      <div class="summary-row" style="font-size:13px;">
+        <span class="s-label">　うち市請求（90%）</span>
+        <span class="s-val" id="sum-city-burden">─</span>
+      </div>
+    </div>
+
+    <!-- 合計 -->
+    <div class="summary-total">
+      <span class="t-label">1件 合計（利用者負担）</span>
+      <span class="t-val"><span id="sum-grand-total">─</span>円</span>
+    </div>
+
+    <button class="btn btn-gold" onclick="saveRecord()">💾 スプレッドシートに記録する</button>
+    <button class="btn btn-ghost btn-sm" onclick="restartRide()" style="margin-top:8px;">↩ やり直す（走行破棄）</button>
+  </div>
+</div>
+
+<!-- ============ SCREEN 6: 記録完了 ============ -->
+<div id="screen-complete" class="screen">
+  <div class="header"><h1>✅ 記録完了</h1><span class="step"></span></div>
+  <div class="content" style="justify-content:center; align-items:center;">
+    <div class="complete-icon">✅</div>
+    <div class="complete-msg">スプレッドシートに記録しました</div>
+    <div class="card" style="width:100%">
+      <div class="summary-row">
+        <span class="s-label">利用者</span>
+        <span class="s-val" id="comp-name">─</span>
+      </div>
+      <div class="summary-row">
+        <span class="s-label">運送合計</span>
+        <span class="s-val" id="comp-transport">─</span>
+      </div>
+      <div class="summary-row" id="comp-row-support" style="display:none;">
+        <span class="s-label">移動支援（利用者10%）</span>
+        <span class="s-val" id="comp-support">─</span>
+      </div>
+      <div class="summary-total">
+        <span class="t-label">利用者負担 合計</span>
+        <span class="t-val"><span id="comp-total">─</span>円</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="nextRide()" style="margin-top:20px; width:100%;">
+      🚗 次の乗車へ
+    </button>
+  </div>
+</div>
+
+<!-- LOADING / TOAST -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div style="color:var(--gray);font-size:14px;" id="loading-msg">処理中...</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// =========================================
+// ★ GAS WebアプリURL
+// =========================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwkBBbRdtDKoDFMrOquOOlVt35Xjwv3ZHfpi2DoaG-SgqRFsy5kassZ2drNsaYxEGLBLg/exec';
+
+// =========================================
+// 料金マスタ
+// =========================================
+const FARE = {
+  base: 520, baseDist: 1030, addFare: 100, addDist: 300,
+  pickup: 300, wheelchair: 300, nightRate: 0.2,
+  waitUnit: 250, waitThresh: 10,
+  // 移動支援（身体介護なし）
+  supportNone: { r20: 800, r30: 1500, r60: 2250, r90: 3000, addPer30: 750 },
+  // 移動支援（身体介護あり）
+  supportKaigo:{ r20: 2300, r30: 4000, r60: 5800, r90: 6620, addPer30: 820 },
+  zoneRate: { day: 0, eve: 0.25, night: 0.5 },
+};
+
+// =========================================
+// 状態
+// =========================================
+const state = {
+  member: '',
+  tripType: 'roundtrip', // roundtrip / oneway
+  opts: { pickup: false, wheelchair: false, night: false, kaigo: false },
+  // 往路
+  ob: { startTime: null, endTime: null, distM: 0, lastPos: null, geoId: null, timerInterval: null },
+  // 復路
+  rt: { startTime: null, endTime: null, distM: 0, lastPos: null, geoId: null, timerInterval: null },
+  // 現地（支援 or 待機）
+  middle: {
+    mode: null,            // 'support' or 'wait'
+    zone: 'day',           // 'day' / 'eve' / 'night'
+    isRunning: false,
+    startTime: null,
+    totalSec: 0,
+    intervalId: null,
+  },
+};
+
+// =========================================
+// 起動
+// =========================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadMembers();
+  checkNightAuto();
+});
+
+async function loadMembers() {
+  const sel = document.getElementById('member-select');
+  try {
+    const res = await fetch(`${GAS_URL}?action=getMembers`);
+    const data = await res.json();
+    sel.innerHTML = '<option value="">── 利用者を選択 ──</option>';
+    (data.members || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.name; opt.textContent = m.name;
+      sel.appendChild(opt);
+    });
+  } catch {
+    sel.outerHTML = `<input type="text" id="member-select" placeholder="利用者名を入力"
+      style="width:100%;background:var(--bg3);color:var(--text);border:1px solid #3E5070;
+      border-radius:8px;padding:12px 14px;font-size:16px;">`;
+  }
+}
+
+function checkNightAuto() {
+  const h = new Date().getHours();
+  if (h >= 22 || h < 5) {
+    if (!state.opts.night) toggleOpt('night');
+    showToast('🌙 夜間時間帯：夜間割増をONにしました');
+  }
+}
+
+// =========================================
+// 設定画面
+// =========================================
+function selectTrip(type) {
+  state.tripType = type;
+  document.getElementById('trip-roundtrip').classList.toggle('active', type === 'roundtrip');
+  document.getElementById('trip-oneway').classList.toggle('active', type === 'oneway');
+}
+
+function toggleOpt(key) {
+  state.opts[key] = !state.opts[key];
+  document.getElementById(`opt-${key}`)?.classList.toggle('active', state.opts[key]);
+}
+
+// =========================================
+// 往路開始
+// =========================================
+function startOutbound() {
+  const sel = document.getElementById('member-select');
+  const name = sel.value;
+  if (!name) { showToast('⚠ 利用者を選択してください'); return; }
+  state.member = name;
+  state.ob.startTime = new Date();
+  state.ob.distM = 0;
+  state.ob.lastPos = null;
+
+  document.getElementById('outbound-passenger').textContent = name;
+  document.getElementById('start-time-ob').textContent = fmtTime(state.ob.startTime);
+
+  // 進捗バー（片道は4ステップ、往復は4ステップ共通）
+  const step4 = document.getElementById('prog-ob-4');
+  if (step4) step4.style.display = state.tripType === 'oneway' ? 'none' : '';
+
+  showScreen('outbound');
+  startGPS('ob');
+  startElapsedTimer('ob');
+}
+
+// =========================================
+// 現地到着
+// =========================================
+function arriveDestination() {
+  state.ob.endTime = new Date();
+  stopGPS('ob');
+  stopElapsedTimer('ob');
+
+  // 現地画面の初期化
+  const obFare = calcFare(state.ob.distM);
+  document.getElementById('middle-passenger').textContent = state.member;
+  document.getElementById('middle-ob-result').textContent =
+    `往路 ${(state.ob.distM/1000).toFixed(3)}km → 運送対価 ${obFare.toLocaleString()}円`;
+
+  // 往復/片道でボタン表示を切り替え
+  document.getElementById('btn-middle-next').style.display = state.tripType === 'roundtrip' ? '' : 'none';
+  document.getElementById('btn-skip-return').style.display = state.tripType === 'oneway' ? '' : 'none';
+
+  // タイマーリセット
+  state.middle.mode = null;
+  state.middle.isRunning = false;
+  state.middle.totalSec = 0;
+  state.middle.startTime = null;
+  if (state.middle.intervalId) clearInterval(state.middle.intervalId);
+  document.getElementById('timer-area').style.display = 'none';
+  document.getElementById('mode-support').className = 'mode-btn';
+  document.getElementById('mode-wait').className = 'mode-btn';
+
+  showScreen('middle');
+}
+
+// =========================================
+// 現地モード選択（支援 or 待機）
+// =========================================
+function selectMode(mode) {
+  // 実行中なら止める
+  if (state.middle.isRunning) stopMiddleTimer();
+
+  state.middle.mode = mode;
+  document.getElementById('mode-support').className = 'mode-btn' + (mode === 'support' ? ' active-support' : '');
+  document.getElementById('mode-wait').className    = 'mode-btn' + (mode === 'wait'    ? ' active-wait'    : '');
+
+  // タイマーエリア表示
+  const area = document.getElementById('timer-area');
+  area.style.display = '';
+
+  const block = document.getElementById('timer-block');
+  const label = document.getElementById('timer-label');
+  const val   = document.getElementById('timer-val');
+  const sub   = document.getElementById('timer-sub');
+  const btn   = document.getElementById('btn-timer');
+  const supportZone = document.getElementById('support-zone-area');
+
+  val.className = 'ti-val ' + mode;
+  btn.className = 'btn-timer-toggle';
+
+  if (mode === 'support') {
+    block.className = 'timer-block mode-support';
+    label.textContent = '支援時間';
+    val.textContent = fmtMMSS(state.middle.totalSec);
+    sub.innerHTML = '支援報酬：<span class="support" id="timer-fee">0</span>円';
+    btn.textContent = '開始';
+    supportZone.style.display = '';
+  } else {
+    block.className = 'timer-block mode-wait';
+    label.textContent = '待機時間';
+    val.textContent = fmtMMSS(state.middle.totalSec);
+    sub.innerHTML = '待機料金：<span class="wait" id="timer-fee">0</span>円（10分超から加算）';
+    btn.textContent = '開始';
+    supportZone.style.display = 'none';
+  }
+  updateMiddleDisplay();
+}
+
+function selectZone(zone) {
+  state.middle.zone = zone;
+  ['day','eve','night'].forEach(z => {
+    document.getElementById(`zone-${z}`).classList.toggle('active', z === zone);
+  });
+  updateMiddleDisplay();
+}
+
+// =========================================
+// 中間タイマー（支援 or 待機）
+// =========================================
+function toggleTimer() {
+  if (!state.middle.mode) { showToast('⚠ 移動支援 or 待機を選択してください'); return; }
+  if (!state.middle.isRunning) {
+    // 開始
+    state.middle.isRunning = true;
+    state.middle.startTime = Date.now();
+    state.middle.intervalId = setInterval(updateMiddleDisplay, 1000);
+    const btn = document.getElementById('btn-timer');
+    btn.textContent = '終了';
+    btn.className = 'btn-timer-toggle running-' + state.middle.mode;
+    showToast(state.middle.mode === 'support' ? '🤝 支援タイマー開始' : '🕐 待機タイマー開始');
+  } else {
+    stopMiddleTimer();
+    showToast(state.middle.mode === 'support' ? '✅ 支援終了' : '✅ 待機終了');
+  }
+}
+
+function stopMiddleTimer() {
+  if (state.middle.isRunning && state.middle.startTime) {
+    state.middle.totalSec += Math.floor((Date.now() - state.middle.startTime) / 1000);
+  }
+  state.middle.isRunning = false;
+  clearInterval(state.middle.intervalId);
+  const btn = document.getElementById('btn-timer');
+  btn.textContent = '開始';
+  btn.className = 'btn-timer-toggle';
+  updateMiddleDisplay();
+}
+
+function updateMiddleDisplay() {
+  let sec = state.middle.totalSec;
+  if (state.middle.isRunning && state.middle.startTime) {
+    sec += Math.floor((Date.now() - state.middle.startTime) / 1000);
+  }
+  const val = document.getElementById('timer-val');
+  if (val) val.textContent = fmtMMSS(sec);
+
+  const feeEl = document.getElementById('timer-fee');
+  if (!feeEl) return;
+  const min = Math.floor(sec / 60);
+  if (state.middle.mode === 'support') {
+    feeEl.textContent = calcSupportFee(min, state.middle.zone, state.opts.kaigo).total.toLocaleString();
+  } else {
+    feeEl.textContent = calcWaitFee(min).toLocaleString();
+  }
+}
+
+function getMiddleMinutes() {
+  let sec = state.middle.totalSec;
+  if (state.middle.isRunning && state.middle.startTime) {
+    sec += Math.floor((Date.now() - state.middle.startTime) / 1000);
+  }
+  return Math.floor(sec / 60);
+}
+
+// =========================================
+// 復路へ
+// =========================================
+function leaveDestination() {
+  // 実行中タイマーがあれば止める
+  if (state.middle.isRunning) stopMiddleTimer();
+  state.rt.startTime = new Date();
+  state.rt.distM = 0;
+  state.rt.lastPos = null;
+  document.getElementById('return-passenger').textContent = state.member;
+  document.getElementById('start-time-rt').textContent = fmtTime(state.rt.startTime);
+  showScreen('return');
+  startGPS('rt');
+  startElapsedTimer('rt');
+}
+
+function skipReturn() {
+  // 片道：現地で終了
+  if (state.middle.isRunning) stopMiddleTimer();
+  state.rt.startTime = null;
+  state.rt.endTime = null;
+  state.rt.distM = 0;
+  showSummaryScreen();
+}
+
+// =========================================
+// 復路終了
+// =========================================
+function finishReturn() {
+  state.rt.endTime = new Date();
+  stopGPS('rt');
+  stopElapsedTimer('rt');
+  showSummaryScreen();
+}
+
+// =========================================
+// サマリー画面
+// =========================================
+function showSummaryScreen() {
+  showScreen('summary');
+  document.getElementById('sum-passenger').textContent = state.member;
+
+  const obDistM = state.ob.distM;
+  const rtDistM = state.rt.distM;
+  const midMin  = getMiddleMinutes();
+
+  // 往路
+  const obBaseFare = calcFare(obDistM);
+  const obFare     = state.opts.night ? Math.floor(obBaseFare * (1 + FARE.nightRate)) : obBaseFare;
+  // 復路
+  const rtBaseFare = calcFare(rtDistM);
+  const rtFare     = state.opts.night ? Math.floor(rtBaseFare * (1 + FARE.nightRate)) : rtBaseFare;
+
+  document.getElementById('sum-dist-ob').textContent = (obDistM/1000).toFixed(3) + ' km';
+  document.getElementById('sum-fare-ob').textContent = obFare.toLocaleString() + '円';
+
+  // 復路行
+  const rtRow = document.getElementById('sum-row-dist-rt');
+  const rtFareRow = document.getElementById('sum-row-fare-rt');
+  if (state.tripType === 'roundtrip') {
+    document.getElementById('sum-dist-rt').textContent = (rtDistM/1000).toFixed(3) + ' km';
+    document.getElementById('sum-fare-rt').textContent = rtFare.toLocaleString() + '円';
+    rtRow.style.display = ''; rtFareRow.style.display = '';
+  } else {
+    rtRow.style.display = 'none'; rtFareRow.style.display = 'none';
+  }
+
+  // 夜間割増表示
+  const nightRow = document.getElementById('sum-row-night');
+  if (state.opts.night) {
+    const adj = (obFare - obBaseFare) + (state.tripType === 'roundtrip' ? (rtFare - rtBaseFare) : 0);
+    document.getElementById('sum-night').textContent = '+' + adj.toLocaleString() + '円';
+    nightRow.style.display = '';
+  } else nightRow.style.display = 'none';
+
+  document.getElementById('sum-row-pickup').style.display = state.opts.pickup    ? '' : 'none';
+  document.getElementById('sum-row-wheel').style.display  = state.opts.wheelchair? '' : 'none';
+
+  // 待機料
+  let waitFee = 0;
+  if (state.middle.mode === 'wait') {
+    waitFee = calcWaitFee(midMin);
+    document.getElementById('sum-wait-fee').textContent = waitFee.toLocaleString() + '円';
+    document.getElementById('sum-row-wait').style.display = '';
+  } else {
+    document.getElementById('sum-row-wait').style.display = 'none';
+  }
+
+  // 運送小計
+  let transportTotal = obFare;
+  if (state.tripType === 'roundtrip') transportTotal += rtFare;
+  transportTotal += (state.opts.pickup ? FARE.pickup : 0);
+  transportTotal += (state.opts.wheelchair ? FARE.wheelchair : 0);
+  transportTotal += waitFee;
+  document.getElementById('sum-transport-total').textContent = transportTotal.toLocaleString() + '円';
+
+  // 移動支援
+  let supportUserBurden = 0;
+  if (state.middle.mode === 'support') {
+    const sf = calcSupportFee(midMin, state.middle.zone, state.opts.kaigo);
+    document.getElementById('sum-support-card').style.display = '';
+    document.getElementById('sum-support-time').textContent = midMin + '分';
+    document.getElementById('sum-kaigo').textContent = state.opts.kaigo ? '身体介護あり' : '身体介護なし';
+    const zoneLabel = { day:'日中（加算なし）', eve:'早朝・夜間（+25%）', night:'深夜（+50%）' };
+    document.getElementById('sum-zone').innerHTML =
+      `<span class="zone-badge zone-${state.middle.zone}">${zoneLabel[state.middle.zone]}</span>`;
+    document.getElementById('sum-support-base').textContent = sf.base.toLocaleString() + '円';
+    if (sf.zoneAdd > 0) {
+      document.getElementById('sum-zone-add').textContent = '+' + sf.zoneAdd.toLocaleString() + '円';
+      document.getElementById('sum-row-zone-add').style.display = '';
+    } else {
+      document.getElementById('sum-row-zone-add').style.display = 'none';
+    }
+    document.getElementById('sum-support-total').textContent = sf.total.toLocaleString() + '円';
+    supportUserBurden = Math.floor(sf.total * 0.1);
+    document.getElementById('sum-user-burden').textContent = supportUserBurden.toLocaleString() + '円';
+    document.getElementById('sum-city-burden').textContent = (sf.total - supportUserBurden).toLocaleString() + '円';
+  } else {
+    document.getElementById('sum-support-card').style.display = 'none';
+  }
+
+  // 合計（利用者負担）= 運送全額 + 支援10%
+  const grandTotal = transportTotal + supportUserBurden;
+  document.getElementById('sum-grand-total').textContent = grandTotal.toLocaleString();
+}
+
+// =========================================
+// 記録保存
+// =========================================
+async function saveRecord() {
+  const obDistM = state.ob.distM;
+  const rtDistM = state.rt.distM;
+  const midMin  = getMiddleMinutes();
+
+  const obBaseFare = calcFare(obDistM);
+  const obFare     = state.opts.night ? Math.floor(obBaseFare * (1 + FARE.nightRate)) : obBaseFare;
+  const rtBaseFare = calcFare(rtDistM);
+  const rtFare     = state.tripType === 'roundtrip'
+    ? (state.opts.night ? Math.floor(rtBaseFare * (1 + FARE.nightRate)) : rtBaseFare)
+    : 0;
+
+  const waitFee    = state.middle.mode === 'wait' ? calcWaitFee(midMin) : 0;
+  const sf         = state.middle.mode === 'support' ? calcSupportFee(midMin, state.middle.zone, state.opts.kaigo) : null;
+  const supportTotal = sf ? sf.total : 0;
+  const supportUser  = sf ? Math.floor(sf.total * 0.1) : 0;
+  const supportCity  = sf ? (sf.total - supportUser) : 0;
+
+  let transportTotal = obFare + rtFare
+    + (state.opts.pickup ? FARE.pickup : 0)
+    + (state.opts.wheelchair ? FARE.wheelchair : 0)
+    + waitFee;
+  const grandTotal = transportTotal + supportUser;
+
+  const record = {
+    action: 'saveRecord',
+    // 基本情報
+    datetime:       fmtDatetime(state.ob.startTime),
+    memberName:     state.member,
+    tripType:       state.tripType === 'roundtrip' ? '往復' : '片道',
+    // 往路
+    obDistKm:       (obDistM/1000).toFixed(3),
+    obBaseFare:     obBaseFare,
+    obFare:         obFare,
+    obStart:        fmtDatetime(state.ob.startTime),
+    obEnd:          fmtDatetime(state.ob.endTime),
+    // 復路
+    rtDistKm:       state.tripType === 'roundtrip' ? (rtDistM/1000).toFixed(3) : '',
+    rtBaseFare:     state.tripType === 'roundtrip' ? rtBaseFare : 0,
+    rtFare:         rtFare,
+    rtStart:        state.rt.startTime ? fmtDatetime(state.rt.startTime) : '',
+    rtEnd:          state.rt.endTime   ? fmtDatetime(state.rt.endTime)   : '',
+    // オプション
+    nightFlag:      state.opts.night      ? '○' : '',
+    pickupFee:      state.opts.pickup     ? FARE.pickup : 0,
+    wheelFee:       state.opts.wheelchair ? FARE.wheelchair : 0,
+    // 現地
+    middleMode:     state.middle.mode === 'support' ? '移動支援' : state.middle.mode === 'wait' ? '待機' : 'なし',
+    middleMinutes:  midMin,
+    waitFee:        waitFee,
+    // 移動支援
+    kaigoFlag:      state.opts.kaigo ? '○' : '',
+    supportZone:    { day:'日中', eve:'早朝夜間', night:'深夜' }[state.middle.zone] || '',
+    supportBase:    sf ? sf.base : 0,
+    supportZoneAdd: sf ? sf.zoneAdd : 0,
+    supportTotal:   supportTotal,
+    supportUser:    supportUser,
+    supportCity:    supportCity,
+    // 合計
+    transportTotal: transportTotal,
+    grandTotal:     grandTotal,
+  };
+
+  showLoading('スプレッドシートに記録中...');
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+    const data = await res.json();
+    hideLoading();
+    if (data.result === 'ok') {
+      showCompleteScreen(transportTotal, supportUser, grandTotal);
+    } else {
+      showToast('⚠ 記録失敗: ' + (data.error || '不明なエラー'));
+    }
+  } catch {
+    hideLoading();
+    showToast('⚠ 通信エラー。Wi-Fiやデータ通信を確認してください。');
+  }
+}
+
+function showCompleteScreen(transport, supportUser, grand) {
+  showScreen('complete');
+  document.getElementById('comp-name').textContent      = state.member;
+  document.getElementById('comp-transport').textContent = transport.toLocaleString() + '円';
+  document.getElementById('comp-total').textContent     = grand.toLocaleString();
+  const sr = document.getElementById('comp-row-support');
+  if (state.middle.mode === 'support') {
+    document.getElementById('comp-support').textContent = supportUser.toLocaleString() + '円';
+    sr.style.display = '';
+  } else sr.style.display = 'none';
+}
+
+function nextRide()    { resetState(); showScreen('setup'); }
+function restartRide() {
+  if (!confirm('走行記録を破棄して最初からやり直しますか？')) return;
+  resetState(); showScreen('setup');
+}
+
+function resetState() {
+  // GPS・タイマー全停止
+  stopGPS('ob'); stopGPS('rt');
+  stopElapsedTimer('ob'); stopElapsedTimer('rt');
+  if (state.middle.intervalId) clearInterval(state.middle.intervalId);
+
+  state.member = '';
+  state.tripType = 'roundtrip';
+  state.opts = { pickup: false, wheelchair: false, night: false, kaigo: false };
+  state.ob = { startTime:null, endTime:null, distM:0, lastPos:null, geoId:null, timerInterval:null };
+  state.rt = { startTime:null, endTime:null, distM:0, lastPos:null, geoId:null, timerInterval:null };
+  state.middle = { mode:null, zone:'day', isRunning:false, startTime:null, totalSec:0, intervalId:null };
+
+  ['pickup','wheelchair','night','kaigo'].forEach(k =>
+    document.getElementById(`opt-${k}`)?.classList.remove('active'));
+  selectTrip('roundtrip');
+  loadMembers();
+  checkNightAuto();
+}
+
+// =========================================
+// GPS
+// =========================================
+function startGPS(leg) {
+  const s = state[leg];
+  const dotId    = `gps-dot-${leg}`;
+  const statusId = `gps-status-${leg}`;
+  if (!navigator.geolocation) { setGPSStatus(dotId, statusId, 'error', 'GPS非対応'); return; }
+  setGPSStatus(dotId, statusId, 'waiting', 'GPS取得中...');
+  s.geoId = navigator.geolocation.watchPosition(
+    pos => {
+      setGPSStatus(dotId, statusId, 'ok', `GPS受信中 (±${Math.round(pos.coords.accuracy)}m)`);
+      if (s.lastPos && pos.coords.accuracy < 50) {
+        const d = haversine(s.lastPos, pos.coords);
+        if (d > 5) {
+          s.distM += d;
+          updateMeterDisplay(leg);
+        }
+      }
+      s.lastPos = pos.coords;
+    },
+    () => setGPSStatus(dotId, statusId, 'error', 'GPS取得失敗'),
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+  );
+}
+
+function stopGPS(leg) {
+  const s = state[leg];
+  if (s.geoId !== null) { navigator.geolocation.clearWatch(s.geoId); s.geoId = null; }
+}
+
+function setGPSStatus(dotId, statusId, type, msg) {
+  const dot = document.getElementById(dotId);
+  const txt = document.getElementById(statusId);
+  if (!dot || !txt) return;
+  dot.className = 'gps-dot' + (type==='ok' ? ' ok' : type==='error' ? ' err' : '');
+  txt.textContent = msg;
+}
+
+function haversine(c1, c2) {
+  const R=6371000, dLat=(c2.latitude-c1.latitude)*Math.PI/180, dLon=(c2.longitude-c1.longitude)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(c1.latitude*Math.PI/180)*Math.cos(c2.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// =========================================
+// 経過タイマー
+// =========================================
+function startElapsedTimer(leg) {
+  const s = state[leg];
+  const elId = `elapsed-${leg}`;
+  s.timerInterval = setInterval(() => {
+    if (!s.startTime) return;
+    const sec = Math.floor((Date.now() - s.startTime) / 1000);
+    const m = String(Math.floor(sec/60)).padStart(2,'0');
+    const sv = String(sec%60).padStart(2,'0');
+    const el = document.getElementById(elId);
+    if (el) el.textContent = `${m}:${sv}`;
+  }, 1000);
+}
+
+function stopElapsedTimer(leg) {
+  const s = state[leg];
+  if (s.timerInterval) { clearInterval(s.timerInterval); s.timerInterval = null; }
+}
+
+// =========================================
+// メーター表示
+// =========================================
+function updateMeterDisplay(leg) {
+  const s = state[leg];
+  const distEl = document.getElementById(`dist-${leg}`);
+  const fareEl = document.getElementById(`fare-${leg}`);
+  if (!distEl || !fareEl) return;
+  const baseFare = calcFare(s.distM);
+  const fare = state.opts.night ? Math.floor(baseFare * (1 + FARE.nightRate)) : baseFare;
+  distEl.textContent = (s.distM/1000).toFixed(3);
+  fareEl.textContent = fare.toLocaleString();
+  fareEl.classList.add('pulse');
+  setTimeout(() => fareEl.classList.remove('pulse'), 300);
+}
+
+// =========================================
+// 料金計算
+// =========================================
+function calcFare(distM) {
+  if (distM <= FARE.baseDist) return FARE.base;
+  return FARE.base + Math.ceil((distM - FARE.baseDist) / FARE.addDist) * FARE.addFare;
+}
+
+function calcWaitFee(minutes) {
+  if (minutes <= FARE.waitThresh) return 0;
+  return Math.ceil((minutes - FARE.waitThresh) / 10) * FARE.waitUnit;
+}
+
+function calcSupportFee(minutes, zone, kaigo) {
+  if (minutes < 20) return { base: 0, zoneAdd: 0, total: 0 };
+  const tbl = kaigo ? FARE.supportKaigo : FARE.supportNone;
+  let base;
+  if      (minutes < 30) base = tbl.r20;
+  else if (minutes < 60) base = tbl.r30;
+  else if (minutes < 90) base = tbl.r60;
+  else {
+    base = tbl.r90 + Math.ceil((minutes - 90) / 30) * tbl.addPer30;
+  }
+  const rate    = FARE.zoneRate[zone] || 0;
+  const zoneAdd = Math.floor(base * rate);
+  return { base, zoneAdd, total: base + zoneAdd };
+}
+
+// =========================================
+// ユーティリティ
+// =========================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${id}`).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading').classList.add('show');
+}
+
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+function fmtTime(d) {
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function fmtDatetime(d) {
+  if (!d) return '';
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${fmtTime(d)}`;
+}
+
+function fmtMMSS(sec) {
+  return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0');
+}
+</script>
+</body>
+</html>

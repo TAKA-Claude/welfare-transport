@@ -1128,19 +1128,31 @@ async function saveRecord() {
     // 合計
     transportTotal: transportTotal,
     grandTotal:     grandTotal,
-    // ルート地図
-    obMapUrl:       obMapUrl,
-    rtMapUrl:       rtMapUrl,
+    // ルート地図（URLが長いので別送信）
+    obMapUrl:       '',
+    rtMapUrl:       '',
   };
 
   showLoading('スプレッドシートに記録中...');
   try {
-    // SafariのCORS対策：GETパラメータでデータ送信
-    const params = new URLSearchParams({ data: JSON.stringify(record) });
-    const res = await fetch(`${GAS_URL}?${params.toString()}`);
+    // SafariのCORS対策：GETパラメータでデータ送信（encodeURIComponentで安全にエンコード）
+    const encoded = encodeURIComponent(JSON.stringify(record));
+    const res = await fetch(`${GAS_URL}?data=${encoded}`);
     const data = await res.json();
     hideLoading();
     if (data.result === 'ok') {
+      // 地図URLを別途送信（URLが長いためfetch2回目）
+      if (obMapUrl || rtMapUrl) {
+        const mapRecord = {
+          action: 'saveRecord',
+          updateMapUrl: true,
+          rowIndex: data.rowIndex,
+          obMapUrl: obMapUrl,
+          rtMapUrl: rtMapUrl,
+        };
+        const encoded2 = encodeURIComponent(JSON.stringify(mapRecord));
+        fetch(`${GAS_URL}?data=${encoded2}`).catch(() => {});
+      }
       showCompleteScreen(transportTotal, supportUser, grandTotal);
     } else {
       showToast('⚠ 記録失敗: ' + (data.error || '不明なエラー'));

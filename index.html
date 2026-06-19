@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -69,6 +69,16 @@
   }
   .trip-btn .t-icon { font-size: 26px; }
   .trip-btn.active { border-color: var(--green); background: rgba(0,208,132,.12); color: var(--green); }
+ 
+  /* フロー説明バナー */
+  .trip-flow-banner {
+    background: var(--bg3); border-radius: 10px;
+    padding: 12px 16px; text-align: center;
+    font-size: 14px; font-weight: 700; color: var(--text);
+    border: 1px solid var(--bg3); transition: all .3s;
+  }
+  .trip-flow-banner.roundtrip { border-color: rgba(0,208,132,.4); color: var(--green); background: rgba(0,208,132,.08); }
+  .trip-flow-banner.oneway    { border-color: rgba(74,158,255,.4); color: var(--blue);  background: rgba(74,158,255,.08); }
  
   /* オプション */
   .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -325,8 +335,13 @@
       </div>
     </div>
  
+    <!-- フロー説明バナー -->
+    <div class="trip-flow-banner" id="trip-flow-banner">
+      <span id="trip-flow-text">🔄 往復：出発地 → 目的地 → 帰着地</span>
+    </div>
+ 
     <div style="margin-top: auto; padding-top: 8px;">
-      <button class="btn btn-primary" onclick="startOutbound()">🚀 往路 乗車開始</button>
+      <button class="btn btn-primary" id="btn-start-ride" onclick="startOutbound()">🚗 乗車開始（往路）</button>
     </div>
   </div>
 </div>
@@ -686,6 +701,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadDrivers();
   loadMembers();
   checkNightAuto();
+  selectTrip('roundtrip'); // 初期バナー表示
 });
  
 async function loadDrivers() {
@@ -753,6 +769,20 @@ function selectTrip(type) {
   state.tripType = type;
   document.getElementById('trip-roundtrip').classList.toggle('active', type === 'roundtrip');
   document.getElementById('trip-oneway').classList.toggle('active', type === 'oneway');
+ 
+  // フロー説明バナー更新
+  const banner = document.getElementById('trip-flow-banner');
+  const text   = document.getElementById('trip-flow-text');
+  const btn    = document.getElementById('btn-start-ride');
+  if (type === 'roundtrip') {
+    banner.className = 'trip-flow-banner roundtrip';
+    text.textContent = '🔄 往復：出発地 → 目的地 → 帰着地';
+    btn.textContent  = '🚗 乗車開始（往路）';
+  } else {
+    banner.className = 'trip-flow-banner oneway';
+    text.textContent = '➡️ 片道：出発地 → 目的地';
+    btn.textContent  = '🚗 乗車開始（片道）';
+  }
 }
  
 function toggleOpt(key) {

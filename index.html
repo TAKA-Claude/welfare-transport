@@ -6,10 +6,11 @@
 <title>ともなり 運送・支援メーター</title>
 <style>
   :root {
-    --bg:    #1A2332; --bg2: #243042; --bg3: #2E3D54;
-    --green: #00D084; --gold: #F5A623; --red: #E84545;
-    --blue:  #4A9EFF; --purple: #A855F7;
-    --gray:  #8A9AB5; --text: #E8EDF5; --white: #FFFFFF;
+    --bg:    #F2F5FA; --bg2: #FFFFFF; --bg3: #EEF2F8;
+    --green: #00A86B; --gold: #E8940C; --red: #E14343;
+    --blue:  #2F6FED; --purple: #9333EA;
+    --gray:  #6B7A99; --text: #1B2436; --white: #FFFFFF;
+    --border: #DDE4EF;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { background: var(--bg); color: var(--text);
@@ -19,24 +20,25 @@
   .screen.active { display: flex; flex-direction: column; }
  
   .header {
-    background: var(--bg2); padding: 14px 20px;
+    background: linear-gradient(135deg, #2F6FED, #4F8CFF); padding: 14px 20px;
     display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--bg3); position: sticky; top: 0; z-index: 10;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    box-shadow: 0 2px 8px rgba(47,111,237,.2);
   }
-  .header h1 { font-size: 15px; font-weight: 700; color: var(--green); letter-spacing: .05em; }
-  .header .step { font-size: 12px; color: var(--gray); }
+  .header h1 { font-size: 15px; font-weight: 700; color: #FFFFFF; letter-spacing: .05em; }
+  .header .step { font-size: 12px; color: rgba(255,255,255,.85); }
  
   /* 連携ステータスバッジ */
   .sync-badge {
     display: inline-flex; align-items: center; gap: 5px;
-    background: var(--bg3); border-radius: 20px;
+    background: rgba(255,255,255,.18); border-radius: 20px;
     padding: 5px 10px; font-size: 11px; font-weight: 700;
-    color: var(--gray); border: 1px solid var(--bg3);
+    color: #FFFFFF; border: 1px solid rgba(255,255,255,.3);
     transition: all .4s;
   }
-  .sync-badge.checking { color: var(--gold); border-color: rgba(245,166,35,.3); background: rgba(245,166,35,.08); }
-  .sync-badge.ok       { color: var(--green); border-color: rgba(0,208,132,.3); background: rgba(0,208,132,.08); }
-  .sync-badge.error    { color: var(--red);   border-color: rgba(232,69,69,.3); background: rgba(232,69,69,.08); }
+  .sync-badge.checking { color: #FFFFFF; border-color: rgba(255,255,255,.4); background: rgba(245,166,35,.35); }
+  .sync-badge.ok       { color: #FFFFFF; border-color: rgba(255,255,255,.4); background: rgba(0,168,107,.35); }
+  .sync-badge.error    { color: #FFFFFF; border-color: rgba(255,255,255,.4); background: rgba(225,67,67,.4); }
   .sync-dot {
     width: 7px; height: 7px; border-radius: 50%; background: var(--gray);
     transition: background .4s;
@@ -47,13 +49,13 @@
  
   .content { flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 14px; }
  
-  .card { background: var(--bg2); border-radius: 12px; padding: 16px; border: 1px solid var(--bg3); }
+  .card { background: var(--bg2); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
   .card-label { font-size: 11px; color: var(--gray); text-transform: uppercase;
     letter-spacing: .1em; margin-bottom: 10px; font-weight: 600; }
  
   select, input[type="number"], input[type="text"] {
     width: 100%; background: var(--bg3); color: var(--text);
-    border: 1px solid #3E5070; border-radius: 8px;
+    border: 1px solid var(--border); border-radius: 8px;
     padding: 12px 14px; font-size: 16px;
     -webkit-appearance: none; appearance: none;
   }
@@ -75,7 +77,7 @@
     background: var(--bg3); border-radius: 10px;
     padding: 12px 16px; text-align: center;
     font-size: 14px; font-weight: 700; color: var(--text);
-    border: 1px solid var(--bg3); transition: all .3s;
+    border: 1px solid var(--border); transition: all .3s;
   }
   .trip-flow-banner.roundtrip { border-color: rgba(0,208,132,.4); color: var(--green); background: rgba(0,208,132,.08); }
   .trip-flow-banner.oneway    { border-color: rgba(74,158,255,.4); color: var(--blue);  background: rgba(74,158,255,.08); }
@@ -108,7 +110,7 @@
   /* メーター */
   .meter-block {
     background: var(--bg2); border-radius: 16px; padding: 24px 20px;
-    text-align: center; border: 1px solid var(--bg3);
+    text-align: center; border: 1px solid var(--border);
   }
   .meter-label { font-size: 11px; color: var(--gray); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
   .meter-value {
@@ -213,11 +215,11 @@
     letter-spacing: .04em; transition: all .15s;
   }
   .btn:active { transform: scale(.97); }
-  .btn-primary { background: var(--green); color: #000; }
+  .btn-primary { background: var(--green); color: #fff; }
   .btn-danger  { background: var(--red);   color: #fff; }
-  .btn-gold    { background: var(--gold);  color: #000; }
-  .btn-blue    { background: var(--blue);  color: #000; }
-  .btn-ghost   { background: var(--bg3);   color: var(--text); border: 1px solid var(--bg3); }
+  .btn-gold    { background: var(--gold);  color: #fff; }
+  .btn-blue    { background: var(--blue);  color: #fff; }
+  .btn-ghost   { background: var(--bg3);   color: var(--text); border: 1px solid var(--border); }
   .btn-sm { padding: 12px; font-size: 15px; border-radius: 8px; }
  
   .divider { height: 1px; background: var(--bg3); margin: 4px 0; }
@@ -720,7 +722,7 @@ async function loadDrivers() {
     if (saved) state.driver = saved;
   } catch {
     sel.outerHTML = `<input type="text" id="driver-select" placeholder="ドライバー名を入力"
-      style="width:100%;background:var(--bg3);color:var(--text);border:1px solid #3E5070;
+      style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);
       border-radius:8px;padding:12px 14px;font-size:16px;">`;
   }
 }
@@ -741,7 +743,7 @@ async function loadMembers() {
   } catch {
     setSyncStatus('error', '連携エラー');
     sel.outerHTML = `<input type="text" id="member-select" placeholder="利用者名を入力"
-      style="width:100%;background:var(--bg3);color:var(--text);border:1px solid #3E5070;
+      style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);
       border-radius:8px;padding:12px 14px;font-size:16px;">`;
   }
 }

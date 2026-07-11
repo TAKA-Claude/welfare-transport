@@ -697,13 +697,163 @@ const state = {
 };
  
 // =========================================
+// 走行中データの自動保存・復元
+// =========================================
+const TRIP_STORAGE_KEY = 'tomonari_trip_inprogress';
+const TRIP_MAX_AGE_MS  = 12 * 60 * 60 * 1000; // 12時間以上前のデータは自動破棄
+let currentScreenId = 'setup';
+ 
+function serializeTrip() {
+  return {
+    v: 1,
+    savedAt: Date.now(),
+    screen: currentScreenId,
+    driver: state.driver,
+    member: state.member,
+    tripType: state.tripType,
+    opts: { ...state.opts },
+    ob: {
+      startTime: state.ob.startTime ? state.ob.startTime.toISOString() : null,
+      endTime:   state.ob.endTime   ? state.ob.endTime.toISOString()   : null,
+      distM: state.ob.distM, lastPos: state.ob.lastPos,
+      coords: state.ob.coords, lastRecordedDistM: state.ob.lastRecordedDistM || 0,
+    },
+    rt: {
+      startTime: state.rt.startTime ? state.rt.startTime.toISOString() : null,
+      endTime:   state.rt.endTime   ? state.rt.endTime.toISOString()   : null,
+      distM: state.rt.distM, lastPos: state.rt.lastPos,
+      coords: state.rt.coords, lastRecordedDistM: state.rt.lastRecordedDistM || 0,
+    },
+    middle: {
+      mode: state.middle.mode, zone: state.middle.zone,
+      isRunning: state.middle.isRunning, startTime: state.middle.startTime,
+      totalSec: state.middle.totalSec,
+    },
+  };
+}
+ 
+// setup画面・complete画面（＝走行中でない時）は保存不要なので自動でクリアする
+function persistTrip() {
+  if (currentScreenId === 'setup' || currentScreenId === 'complete') {
+    clearPersistedTrip();
+    return;
+  }
+  try { localStorage.setItem(TRIP_STORAGE_KEY, JSON.stringify(serializeTrip())); } catch {}
+}
+ 
+function clearPersistedTrip() {
+  try { localStorage.removeItem(TRIP_STORAGE_KEY); } catch {}
+}
+ 
+function loadPersistedTrip() {
+  try {
+    const raw = localStorage.getItem(TRIP_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+ 
+// バックグラウンドに回った瞬間・タブが閉じられる瞬間にも保存しておく保険
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistTrip();
+});
+window.addEventListener('pagehide', () => persistTrip());
+ 
+function maybeRestoreTrip() {
+  const saved = loadPersistedTrip();
+  if (!saved || !saved.screen || saved.screen === 'setup') return;
+  if (Date.now() - (saved.savedAt || 0) > TRIP_MAX_AGE_MS) { clearPersistedTrip(); return; }
+ 
+  const ok = confirm(
+    `前回、走行記録の途中でアプリが中断されたようです。\n` +
+    `利用者：${saved.member || '(不明)'}\n\n` +
+    `続きから再開しますか？\n「キャンセル」を押すと破棄して最初からやり直します。`
+  );
+  if (ok) restoreTrip(saved); else clearPersistedTrip();
+}
+ 
+function restoreTrip(saved) {
+  state.driver   = saved.driver || '';
+  state.member   = saved.member || '';
+  state.tripType = saved.tripType || 'roundtrip';
+  state.opts = Object.assign({ pickup:false, wheelchair:false, night:false, kaigo:false }, saved.opts || {});
+ 
+  state.ob.startTime = saved.ob?.startTime ? new Date(saved.ob.startTime) : null;
+  state.ob.endTime   = saved.ob?.endTime   ? new Date(saved.ob.endTime)   : null;
+  state.ob.distM = saved.ob?.distM || 0;
+  state.ob.lastPos = saved.ob?.lastPos || null;
+  state.ob.coords = saved.ob?.coords || [];
+  state.ob.lastRecordedDistM = saved.ob?.lastRecordedDistM || 0;
+ 
+  state.rt.startTime = saved.rt?.startTime ? new Date(saved.rt.startTime) : null;
+  state.rt.endTime   = saved.rt?.endTime   ? new Date(saved.rt.endTime)   : null;
+  state.rt.distM = saved.rt?.distM || 0;
+  state.rt.lastPos = saved.rt?.lastPos || null;
+  state.rt.coords = saved.rt?.coords || [];
+  state.rt.lastRecordedDistM = saved.rt?.lastRecordedDistM || 0;
+ 
+  state.middle.mode = saved.middle?.mode || null;
+  state.middle.zone = saved.middle?.zone || 'day';
+  state.middle.totalSec = saved.middle?.totalSec || 0;
+  // 実行中だったタイマーは安全のため一旦停止扱いにし、中断していた分の時間も加算しておく
+  if (saved.middle?.isRunning && saved.middle?.startTime) {
+    state.middle.totalSec += Math.floor((Date.now() - saved.middle.startTime) / 1000);
+  }
+  state.middle.isRunning = false;
+  state.middle.startTime = null;
+ 
+  const dsel = document.getElementById('driver-select');
+  if (dsel) dsel.value = state.driver;
+  const msel = document.getElementById('member-select');
+  if (msel) msel.value = state.member;
+ 
+  ['pickup','wheelchair','night','kaigo'].forEach(k =>
+    document.getElementById(`opt-${k}`)?.classList.toggle('active', !!state.opts[k]));
+  selectTrip(state.tripType);
+ 
+  const screen = saved.screen;
+  if (screen === 'outbound') {
+    document.getElementById('outbound-passenger').textContent = state.member;
+    if (state.ob.startTime) document.getElementById('start-time-ob').textContent = fmtTime(state.ob.startTime);
+    showScreen('outbound');
+    startGPS('ob');
+    startElapsedTimer('ob');
+  } else if (screen === 'middle') {
+    document.getElementById('middle-passenger').textContent = state.member;
+    const obFare = calcFare(state.ob.distM);
+    document.getElementById('middle-ob-result').textContent =
+      `往路 ${(state.ob.distM/1000).toFixed(3)}km → 運送対価 ${obFare.toLocaleString()}円`;
+    document.getElementById('btn-middle-next').style.display = state.tripType === 'roundtrip' ? '' : 'none';
+    document.getElementById('btn-skip-return').style.display = state.tripType === 'oneway' ? '' : 'none';
+    showScreen('middle');
+    if (state.middle.mode) {
+      selectMode(state.middle.mode);
+      if (state.middle.mode === 'support') selectZone(state.middle.zone);
+    }
+  } else if (screen === 'return') {
+    document.getElementById('return-passenger').textContent = state.member;
+    if (state.rt.startTime) document.getElementById('start-time-rt').textContent = fmtTime(state.rt.startTime);
+    showScreen('return');
+    startGPS('rt');
+    startElapsedTimer('rt');
+  } else if (screen === 'summary') {
+    showSummaryScreen();
+  } else {
+    showScreen('setup');
+    clearPersistedTrip();
+    return;
+  }
+ 
+  showToast('✅ 前回の記録を復元しました');
+}
+ 
+// =========================================
 // 起動
 // =========================================
-window.addEventListener('DOMContentLoaded', () => {
-  loadDrivers();
-  loadMembers();
+window.addEventListener('DOMContentLoaded', async () => {
+  await Promise.all([loadDrivers(), loadMembers()]);
   checkNightAuto();
   selectTrip('roundtrip'); // 初期バナー表示
+  maybeRestoreTrip();
 });
  
 async function loadDrivers() {
@@ -790,6 +940,7 @@ function selectTrip(type) {
 function toggleOpt(key) {
   state.opts[key] = !state.opts[key];
   document.getElementById(`opt-${key}`)?.classList.toggle('active', state.opts[key]);
+  persistTrip();
 }
  
 // =========================================
@@ -894,6 +1045,7 @@ function selectMode(mode) {
     supportZone.style.display = 'none';
   }
   updateMiddleDisplay();
+  persistTrip();
 }
  
 function selectZone(zone) {
@@ -902,6 +1054,7 @@ function selectZone(zone) {
     document.getElementById(`zone-${z}`).classList.toggle('active', z === zone);
   });
   updateMiddleDisplay();
+  persistTrip();
 }
  
 // =========================================
@@ -913,11 +1066,12 @@ function toggleTimer() {
     // 開始
     state.middle.isRunning = true;
     state.middle.startTime = Date.now();
-    state.middle.intervalId = setInterval(updateMiddleDisplay, 1000);
+    state.middle.intervalId = setInterval(() => { updateMiddleDisplay(); persistTrip(); }, 1000);
     const btn = document.getElementById('btn-timer');
     btn.textContent = '終了';
     btn.className = 'btn-timer-toggle running-' + state.middle.mode;
     showToast(state.middle.mode === 'support' ? '🤝 支援タイマー開始' : '🕐 待機タイマー開始');
+    persistTrip();
   } else {
     stopMiddleTimer();
     showToast(state.middle.mode === 'support' ? '✅ 支援終了' : '✅ 待機終了');
@@ -934,6 +1088,7 @@ function stopMiddleTimer() {
   btn.textContent = '開始';
   btn.className = 'btn-timer-toggle';
   updateMiddleDisplay();
+  persistTrip();
 }
  
 function updateMiddleDisplay() {
@@ -1263,7 +1418,7 @@ function startGPS(leg) {
           s.coords.push({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           s.lastRecordedDistM = 0;
         }
-        s.lastPos = pos.coords;
+        s.lastPos = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       }
     },
     () => setGPSStatus(dotId, statusId, 'error', 'GPS取得失敗'),
@@ -1305,6 +1460,7 @@ function startElapsedTimer(leg) {
     if (el) el.textContent = `${m}:${sv}`;
     // 22:00になったら夜間割増を自動ON
     checkNightCrossing();
+    persistTrip();
   }, 1000);
 }
  
@@ -1410,6 +1566,8 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${id}`).classList.add('active');
   window.scrollTo(0, 0);
+  currentScreenId = id;
+  persistTrip();
 }
  
 function showToast(msg) {
@@ -1440,3 +1598,6 @@ function fmtMMSS(sec) {
 </script>
 </body>
 </html>
+ 
+
+

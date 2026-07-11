@@ -787,7 +787,8 @@ function maybeRestoreTrip() {
   const ok = confirm(
     `前回、走行記録の途中でアプリが中断されたようです。\n` +
     `利用者：${saved.member || '(不明)'}\n\n` +
-    `続きから再開しますか？\n「キャンセル」を押すと破棄して最初からやり直します。`
+    `続きから再開する場合は「OK」を押してください。\n` +
+    `データを破棄して最初からやり直す場合は「キャンセル」を。`
   );
   if (ok) restoreTrip(saved); else clearPersistedTrip();
 }

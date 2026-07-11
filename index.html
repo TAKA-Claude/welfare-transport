@@ -754,9 +754,30 @@ function loadPersistedTrip() {
  
 // バックグラウンドに回った瞬間・タブが閉じられる瞬間にも保存しておく保険
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') persistTrip();
+  if (document.visibilityState === 'hidden') {
+    persistTrip();
+  } else if (document.visibilityState === 'visible') {
+    handleForegroundReturn();
+  }
 });
 window.addEventListener('pagehide', () => persistTrip());
+ 
+// ①バックグラウンドから復帰した瞬間、表示中のタイマー・メーターを実時刻ベースで即補正
+// ②走行・待機・支援の記録中だった場合は「記録は保持されています」を一言表示
+function handleForegroundReturn() {
+  if (currentScreenId === 'outbound') {
+    updateElapsedDisplay('ob');
+    updateMeterDisplay('ob');
+  } else if (currentScreenId === 'return') {
+    updateElapsedDisplay('rt');
+    updateMeterDisplay('rt');
+  } else if (currentScreenId === 'middle' && state.middle.mode) {
+    updateMiddleDisplay();
+  } else {
+    return; // setup / summary / complete では通知不要
+  }
+  showToast('🔄 バックグラウンドから復帰しました。記録は保持されています');
+}
  
 function maybeRestoreTrip() {
   const saved = loadPersistedTrip();
@@ -1450,18 +1471,23 @@ function haversine(c1, c2) {
 // =========================================
 function startElapsedTimer(leg) {
   const s = state[leg];
-  const elId = `elapsed-${leg}`;
   s.timerInterval = setInterval(() => {
-    if (!s.startTime) return;
-    const sec = Math.floor((Date.now() - s.startTime) / 1000);
-    const m = String(Math.floor(sec/60)).padStart(2,'0');
-    const sv = String(sec%60).padStart(2,'0');
-    const el = document.getElementById(elId);
-    if (el) el.textContent = `${m}:${sv}`;
+    updateElapsedDisplay(leg);
     // 22:00になったら夜間割増を自動ON
     checkNightCrossing();
     persistTrip();
   }, 1000);
+}
+ 
+// 経過時間表示を実時刻から再計算して即反映（バックグラウンド復帰時の強制補正にも使う）
+function updateElapsedDisplay(leg) {
+  const s = state[leg];
+  if (!s.startTime) return;
+  const sec = Math.floor((Date.now() - s.startTime) / 1000);
+  const m = String(Math.floor(sec/60)).padStart(2,'0');
+  const sv = String(sec%60).padStart(2,'0');
+  const el = document.getElementById(`elapsed-${leg}`);
+  if (el) el.textContent = `${m}:${sv}`;
 }
  
 // 22時跨ぎ監視（走行中に22:00になったら自動で夜間割増ON）
@@ -1598,6 +1624,3 @@ function fmtMMSS(sec) {
 </script>
 </body>
 </html>
- 
-
-

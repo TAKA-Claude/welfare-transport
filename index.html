@@ -861,8 +861,10 @@ async function maybeRestoreTrip() {
   );
   if (reallyDiscard) {
     clearPersistedTrip();
+  } else {
+    // 「破棄しない」＝続きから再開する、という意思なので復元する
+    restoreTrip(saved);
   }
-  // キャンセルした場合はデータを残したままにする（次回起動時に再度確認）
 }
  
 function restoreTrip(saved) {
